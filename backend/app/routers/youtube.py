@@ -39,6 +39,8 @@ class VideoItem(BaseModel):
     duration: str
     duration_seconds: int
     view_count: int
+    like_count: int | None = None
+    comment_count: int | None = None
     hashtags: list[str]
     thumbnail_url: str | None = None
 

@@ -1,13 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { Video } from '../types.ts'
-import { formatCount, formatDuration, formatFullCount, formatUpload } from '../lib/format.ts'
+import { formatCount, formatDuration, formatFullCount, formatRate, formatUpload } from '../lib/format.ts'
+import { outlierIds, viewsPerDay } from '../lib/insights.ts'
 import { WEEKDAY_NAMES, summarizeSchedule } from '../lib/schedule.ts'
 
 type VideoScheduleTableProps = {
   videos: Video[]
 }
 
-type SortKey = 'newest' | 'oldest' | 'views-desc' | 'views-asc' | 'longest' | 'shortest'
+type SortKey = 'newest' | 'oldest' | 'views-desc' | 'views-asc' | 'velocity-desc' | 'likes-desc' | 'longest' | 'shortest'
 type LengthFilter = 'all' | 'shorts' | 'long'
 type WeekdayFilter = 'all' | '0' | '1' | '2' | '3' | '4' | '5' | '6'
 
@@ -23,6 +24,7 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
     () => filterAndSort(videos, sort, length, weekday),
     [videos, sort, length, weekday],
   )
+  const outliers = useMemo(() => outlierIds(videos), [videos])
 
   const countLabel =
     visible.length === videos.length
@@ -54,6 +56,8 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
             <option value="oldest">Oldest</option>
             <option value="views-desc">Most views</option>
             <option value="views-asc">Fewest views</option>
+            <option value="velocity-desc">Fastest views / day</option>
+            <option value="likes-desc">Most likes</option>
             <option value="longest">Longest</option>
             <option value="shortest">Shortest</option>
           </FilterSelect>
@@ -89,7 +93,7 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
         <p className="px-5 py-8 text-sm text-muted sm:px-6">No uploads match these filters.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-[11px] tracking-[0.14em] text-muted uppercase">
                 <th scope="col" className="px-5 py-3 font-medium sm:px-6">
@@ -102,6 +106,15 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
                   Views
                 </th>
                 <th scope="col" className="px-4 py-3 text-right font-medium">
+                  Views / day
+                </th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">
+                  Likes
+                </th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">
+                  Comments
+                </th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">
                   Duration
                 </th>
                 <th scope="col" className="px-5 py-3 font-medium sm:px-6">
@@ -112,6 +125,7 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
             <tbody>
               {visible.map((video) => {
                 const uploaded = formatUpload(video.published_at)
+                const dailyViews = viewsPerDay(video.view_count, video.published_at)
                 return (
                   <tr key={video.id} className="border-b border-line last:border-b-0">
                     <td className="px-5 py-3 sm:px-6">
@@ -125,15 +139,20 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
                         ) : (
                           <div className="h-12 w-20 shrink-0 rounded bg-white/5" />
                         )}
-                        <a
-                          href={video.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="line-clamp-2 font-medium text-ink hover:text-white"
-                          title={video.title}
-                        >
-                          {video.title}
-                        </a>
+                        <div className="min-w-0">
+                          <a
+                            href={video.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="line-clamp-2 font-medium text-ink hover:text-white"
+                            title={video.title}
+                          >
+                            {video.title}
+                          </a>
+                          {outliers.has(video.id) ? (
+                            <p className="mt-1 text-[10px] tracking-wide text-accent uppercase">Outlier · 2× median</p>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 align-middle whitespace-nowrap">
@@ -153,6 +172,15 @@ export function VideoScheduleTable({ videos }: VideoScheduleTableProps) {
                       title={formatFullCount(video.view_count)}
                     >
                       {formatCount(video.view_count)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-ink tabular-nums">
+                      {dailyViews === null ? '—' : formatRate(dailyViews)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-ink tabular-nums" title={video.like_count === null ? undefined : formatFullCount(video.like_count)}>
+                      {video.like_count === null ? '—' : formatCount(video.like_count)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-ink tabular-nums" title={video.comment_count === null ? undefined : formatFullCount(video.comment_count)}>
+                      {video.comment_count === null ? '—' : formatCount(video.comment_count)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-ink tabular-nums">
                       {formatDuration(video.duration_seconds)}
@@ -215,6 +243,10 @@ function filterAndSort(
         return right.view_count - left.view_count
       case 'views-asc':
         return left.view_count - right.view_count
+      case 'velocity-desc':
+        return (viewsPerDay(right.view_count, right.published_at) ?? -1) - (viewsPerDay(left.view_count, left.published_at) ?? -1)
+      case 'likes-desc':
+        return (right.like_count ?? -1) - (left.like_count ?? -1)
       case 'longest':
         return right.duration_seconds - left.duration_seconds
       case 'shortest':

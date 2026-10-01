@@ -359,6 +359,8 @@ def _map_video(item: dict[str, Any]) -> dict[str, Any]:
         "duration": duration if isinstance(duration, str) else "",
         "duration_seconds": _duration_seconds(duration if isinstance(duration, str) else ""),
         "view_count": _as_int(statistics.get("viewCount")),
+        "like_count": _optional_int(statistics.get("likeCount")) if "likeCount" in statistics else None,
+        "comment_count": _optional_int(statistics.get("commentCount")) if "commentCount" in statistics else None,
         "hashtags": _extract_hashtags(snippet.get("title"), snippet.get("description")),
         "thumbnail_url": thumbnail.get("url") if isinstance(thumbnail, dict) else None,
     }
@@ -416,6 +418,16 @@ def _duration_seconds(value: str) -> int:
     minutes = int(match.group("minutes") or 0)
     seconds = int(match.group("seconds") or 0)
     return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
 
 
 def _as_int(value: object) -> int:

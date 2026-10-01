@@ -9,6 +9,13 @@ export function formatFullCount(value: number): string {
   return new Intl.NumberFormat('en').format(value)
 }
 
+export function formatRate(value: number): string {
+  if (value >= 100) {
+    return formatCount(value)
+  }
+  return new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(value)
+}
+
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return '—'

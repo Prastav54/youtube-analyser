@@ -21,6 +21,8 @@ export type Video = {
   duration: string
   duration_seconds: number
   view_count: number
+  like_count: number | null
+  comment_count: number | null
   hashtags: string[]
   thumbnail_url: string | null
 }
