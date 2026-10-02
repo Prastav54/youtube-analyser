@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChannelBench } from '../components/ChannelBench.tsx'
+import { ReportDownload } from '../components/ReportDownload.tsx'
 import { ChannelSearchForm } from '../components/ChannelSearchForm.tsx'
 import { ChannelAnalyzer } from './ChannelAnalyzer.tsx'
 import { getChannel, getErrorMessage, getVideos } from '../services/api.ts'
@@ -13,6 +14,7 @@ import {
   type BenchEntry,
   type BenchRole,
 } from '../lib/bench.ts'
+import { loadReports, rememberReport, saveReports, type StoredReport } from '../lib/reportHistory.ts'
 import type { Channel, Video } from '../types.ts'
 
 export function Dashboard() {
@@ -21,7 +23,10 @@ export function Dashboard() {
   const [videosError, setVideosError] = useState<string | null>(null)
   const [channel, setChannel] = useState<Channel | null>(null)
   const [videos, setVideos] = useState<Video[] | null>(null)
+  const [searchedAt, setSearchedAt] = useState<string | null>(null)
   const [bench, setBench] = useState<BenchEntry[]>(() => loadBench())
+  const [reports, setReports] = useState<StoredReport[]>(() => loadReports())
+  const reportsRef = useRef(reports)
 
   async function handleSearch(query: string) {
     setLoading(true)
@@ -33,7 +38,21 @@ export function Dashboard() {
       setChannel(nextChannel)
       try {
         const nextVideos = await getVideos(nextChannel.id)
+        const lookedUpAt = new Date().toISOString()
         setVideos(nextVideos.videos)
+        setSearchedAt(lookedUpAt)
+        const nextReports = rememberReport(reportsRef.current, {
+          channel: nextChannel,
+          videos: nextVideos.videos,
+          searchedAt: lookedUpAt,
+        })
+        reportsRef.current = nextReports
+        setReports(nextReports)
+        try {
+          saveReports(nextReports)
+        } catch {
+          // The report stays in this session even if the browser storage is full.
+        }
       } catch (videoError) {
         setVideos(null)
         setVideosError(getErrorMessage(videoError))
@@ -71,6 +90,10 @@ export function Dashboard() {
       </div>
 
       <ChannelSearchForm loading={loading} onSearch={handleSearch} />
+      <ReportDownload
+        reports={reports}
+        current={channel && videos && searchedAt ? { channel, videos, searchedAt } : null}
+      />
       <ChannelBench
         entries={bench}
         onOpen={(channelId) => void handleSearch(channelId)}
